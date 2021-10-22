@@ -31,7 +31,13 @@ fn main() {
                     frame.payload().len(),
                 );
                 let packet = IpPacket::new(frame.payload());
-                println!("Ipv6, Len {}, {} to {}", packet.length(), packet.src_addr(), packet.dst_addr());
+                println!(
+                    "Ipv6 {} to {}, Ver {}, TrfCls {}, FlwLbl {}, Len {}, NxtHdr {}, HopLim {}",
+                    packet.src_addr(), packet.dst_addr(),
+                    packet.version(), packet.traffic_class(), packet.flow_label(),
+                    packet.length(), packet.next_header(), packet.hop_limit(),
+                );
+                println!("Payload = {:?}", packet.payload());
             }
             Err(ref err) if err.kind() == std::io::ErrorKind::WouldBlock => continue,
             Err(err) => panic!("{}", err),

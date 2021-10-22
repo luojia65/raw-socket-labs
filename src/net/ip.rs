@@ -105,11 +105,29 @@ impl<T: AsRef<[u8]>> Packet<T> {
     pub fn length(&self) -> u16 {
         NetworkEndian::read_u16(&self.inner.as_ref()[field::LENGTH])
     }
+    pub fn version(&self) -> u8 {
+        ((NetworkEndian::read_u16(&self.inner.as_ref()[field::VER_TC_FLOW])) >> 4) as u8
+    }
+    pub fn traffic_class(&self) -> u8 {
+        ((NetworkEndian::read_u16(&self.inner.as_ref()[0..2]) & 0x0ff0) >> 4) as u8
+    }
+    pub fn flow_label(&self) -> u32 {
+        NetworkEndian::read_u24(&self.inner.as_ref()[1..4]) & 0x000fffff
+    }
+    pub fn next_header(&self) -> u8 {
+        self.inner.as_ref()[field::NXT_HDR]
+    }
+    pub fn hop_limit(&self) -> u8 {
+        self.inner.as_ref()[field::HOP_LIMIT]
+    }
     pub fn dst_addr(&self) -> Address {
         Address::from_bytes(&self.inner.as_ref()[field::DST_ADDR])
     }
     pub fn src_addr(&self) -> Address {
         Address::from_bytes(&self.inner.as_ref()[field::SRC_ADDR])
+    }
+    pub fn payload(&self) -> &[u8] {
+        &self.inner.as_ref()[40..] // todo
     }
 }
 
