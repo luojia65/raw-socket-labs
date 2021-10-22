@@ -4,13 +4,13 @@ mod link;
 use link::*;
 
 fn main() {
-    let mut socket = RawSocketDesc::new("eth0").unwrap();
+    let mut socket = RawSocketDesc::new("lo").unwrap();
     println!("{:?}", socket);
 
     socket.bind_interface().unwrap();
     println!("bind interface success");
     let mtu = socket.interface_mtu().unwrap();
-    println!("mut value: {}", mtu);
+    println!("mtu value: {}", mtu);
     let mut buf = vec![0u8; mtu];
     loop {
         match socket.recv(&mut buf) {
@@ -19,7 +19,7 @@ fn main() {
                 let received = &buf[..len];
                 let frame = EthernetFrame::new(received);
                 println!(
-                    "From {} To {}, Type {:x}, Payload ({} bytes)", 
+                    "From {} To {}, Type {:?}, Payload ({} bytes)", 
                     frame.src_addr(),
                     frame.dest_addr(),
                     frame.ethertype(),

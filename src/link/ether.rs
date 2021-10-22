@@ -27,10 +27,35 @@ impl<T: AsRef<[u8]>> Frame<T> {
     pub fn src_addr(&self) -> Address {
         Address::from_bytes(&self.inner.as_ref()[field::SRC_ADDR])
     }
-    pub fn ethertype(&self) -> u16 {
-        NetworkEndian::read_u16(&self.inner.as_ref()[field::ETHERTYPE])
+    pub fn ethertype(&self) -> Type {
+        let ty = NetworkEndian::read_u16(&self.inner.as_ref()[field::ETHERTYPE]);
+        Type::from(ty)
     }
     pub fn payload(&self) -> &[u8] {
         &self.inner.as_ref()[field::PAYLOAD]
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Type {
+    Ipv6,
+    Unknown(u16),
+}
+
+impl From<u16> for Type {
+    fn from(src: u16) -> Self {
+        match src {
+            0x86DD => Type::Ipv6,
+            others => Type::Unknown(others),
+        }
+    }
+}
+
+impl From<Type> for u16 {
+    fn from(src: Type) -> u16 {
+        match src {
+            Type::Ipv6 => 0x86DD,
+            Type::Unknown(others) => others
+        }
     }
 }
