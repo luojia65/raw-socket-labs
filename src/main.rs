@@ -2,6 +2,8 @@ mod raw_socket_sys;
 use raw_socket_sys::*;
 mod link;
 use link::*;
+mod net;
+
 
 fn main() {
     let mut socket = RawSocketDesc::new("lo").unwrap();
@@ -21,7 +23,7 @@ fn main() {
                 println!(
                     "From {} To {}, Type {:?}, Payload ({} bytes)", 
                     frame.src_addr(),
-                    frame.dest_addr(),
+                    frame.dst_addr(),
                     frame.ethertype(),
                     frame.payload().len(),
                 );

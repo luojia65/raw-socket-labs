@@ -21,12 +21,13 @@ mod field {
 // pub const HEADER_LEN: usize = field::PAYLOAD.start;
 
 impl<T: AsRef<[u8]>> Frame<T> {
-    pub fn dest_addr(&self) -> Address {
+    pub fn dst_addr(&self) -> Address {
         Address::from_bytes(&self.inner.as_ref()[field::DEST_ADDR])
     }
     pub fn src_addr(&self) -> Address {
         Address::from_bytes(&self.inner.as_ref()[field::SRC_ADDR])
     }
+    // does not support IEEE 802.3 frames and 802.1Q fields
     pub fn ethertype(&self) -> Type {
         let ty = NetworkEndian::read_u16(&self.inner.as_ref()[field::ETHERTYPE]);
         Type::from(ty)
