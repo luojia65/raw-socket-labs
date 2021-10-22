@@ -3,10 +3,10 @@ use raw_socket_sys::*;
 mod link;
 use link::*;
 mod net;
-
+use net::*;
 
 fn main() {
-    let mut socket = RawSocketDesc::new("lo").unwrap();
+    let mut socket = RawSocketDesc::new("eth0").unwrap();
     println!("{:?}", socket);
 
     socket.bind_interface().unwrap();
@@ -20,6 +20,9 @@ fn main() {
                 // println!("received: {:x?}", &buf[..len]);
                 let received = &buf[..len];
                 let frame = EthernetFrame::new(received);
+                if frame.ethertype() != EthernetProtocol::Ipv6 {
+                    continue;
+                }
                 println!(
                     "From {} To {}, Type {:?}, Payload ({} bytes)", 
                     frame.src_addr(),
@@ -27,6 +30,8 @@ fn main() {
                     frame.ethertype(),
                     frame.payload().len(),
                 );
+                let packet = IpPacket::new(frame.payload());
+                println!("Ipv6, Len {}, {} to {}", packet.length(), packet.src_addr(), packet.dst_addr());
             }
             Err(ref err) if err.kind() == std::io::ErrorKind::WouldBlock => continue,
             Err(err) => panic!("{}", err),

@@ -5,29 +5,36 @@ use core::fmt;
 
 // Ipv6 address
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct IpAddress {
-    segments: [u16; 8]
+pub struct Address {
+    segments: [u16; 8],
 }
 
-impl From<[u8; 16]> for IpAddress {
-    fn from(octets: [u8; 16]) -> IpAddress {
+impl Address {
+    pub fn from_bytes(src: &[u8]) -> Self {
+        assert!(src.len() == 16);
         let mut segments = [0u16; 8];
         for idx in 0..8 {
-            let buf = &octets[idx * 2..];
+            let buf = &src[idx * 2..];
             let segment = NetworkEndian::read_u16(buf);
             segments[idx] = segment;
         }
-        IpAddress { segments }
+        Address { segments }
     }
 }
 
-impl From<[u16; 8]> for IpAddress {
-    fn from(segments: [u16; 8]) -> IpAddress {
-        IpAddress { segments }
+impl From<[u8; 16]> for Address {
+    fn from(octets: [u8; 16]) -> Address {
+        Address::from_bytes(&octets)
     }
 }
 
-impl fmt::Display for IpAddress {
+impl From<[u16; 8]> for Address {
+    fn from(segments: [u16; 8]) -> Address {
+        Address { segments }
+    }
+}
+
+impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (longest_idx, longest_len) = {
             let (mut longest_idx, mut longest_len) = (0, 0);
@@ -62,16 +69,60 @@ impl fmt::Display for IpAddress {
     }
 }
 
+pub struct Packet<T> {
+    inner: T,
+}
+
+impl<T: AsRef<[u8]>> Packet<T> {
+    pub fn new(inner: T) -> Self {
+        Self { inner }
+    }
+}
+
+// Ref: smoltcp
+// https://tools.ietf.org/html/rfc2460#section-3.
+mod field {
+    use core::ops::Range;
+    // 4-bit version number, 8-bit traffic class, and the
+    // 20-bit flow label.
+    pub const VER_TC_FLOW: Range<usize> = 0..4;
+    // 16-bit value representing the length of the payload.
+    // Note: Options are included in this length.
+    pub const LENGTH:      Range<usize> = 4..6;
+    // 8-bit value identifying the type of header following this
+    // one. Note: The same numbers are used in IPv4.
+    pub const NXT_HDR:     usize = 6;
+    // 8-bit value decremented by each node that forwards this
+    // packet. The packet is discarded when the value is 0.
+    pub const HOP_LIMIT:   usize = 7;
+    // IPv6 address of the source node.
+    pub const SRC_ADDR:    Range<usize> = 8..24;
+    // IPv6 address of the destination node.
+    pub const DST_ADDR:    Range<usize> = 24..40;
+}
+
+impl<T: AsRef<[u8]>> Packet<T> {
+    pub fn length(&self) -> u16 {
+        NetworkEndian::read_u16(&self.inner.as_ref()[field::LENGTH])
+    }
+    pub fn dst_addr(&self) -> Address {
+        Address::from_bytes(&self.inner.as_ref()[field::DST_ADDR])
+    }
+    pub fn src_addr(&self) -> Address {
+        Address::from_bytes(&self.inner.as_ref()[field::SRC_ADDR])
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::IpAddress;
+    use super::Address;
     #[test]
     fn ip_address_print() {
-        assert_eq!("::", IpAddress::from([0, 0, 0, 0, 0, 0, 0, 0]).to_string());
-        assert_eq!("::1", IpAddress::from([0, 0, 0, 0, 0, 0, 0, 1]).to_string());
-        assert_eq!("FE80::1234:5678", IpAddress::from([0xfe80, 0, 0, 0, 0, 0, 0x1234, 0x5678]).to_string());
-        assert_eq!("FF01::101", IpAddress::from([0xff01, 0, 0, 0, 0, 0, 0, 0x101]).to_string());
-        assert_eq!("2001:DB8::8:800:200C:417A", IpAddress::from([0x2001, 0xdb8, 0, 0, 8, 0x800, 0x200c, 0x417a]).to_string());
-        assert_eq!("2001:DB8:0:CD30::", IpAddress::from([0x2001, 0xdb8, 0, 0xcd30, 0, 0, 0, 0]).to_string());
+        assert_eq!("::", Address::from([0, 0, 0, 0, 0, 0, 0, 0]).to_string());
+        assert_eq!("::1", Address::from([0, 0, 0, 0, 0, 0, 0, 1]).to_string());
+        assert_eq!("FE80::1234:5678", Address::from([0xfe80, 0, 0, 0, 0, 0, 0x1234, 0x5678]).to_string());
+        assert_eq!("FF01::101", Address::from([0xff01, 0, 0, 0, 0, 0, 0, 0x101]).to_string());
+        assert_eq!("2001:DB8::8:800:200C:417A", Address::from([0x2001, 0xdb8, 0, 0, 8, 0x800, 0x200c, 0x417a]).to_string());
+        assert_eq!("2001:DB8:0:CD30::", Address::from([0x2001, 0xdb8, 0, 0xcd30, 0, 0, 0, 0]).to_string());
     }
 }

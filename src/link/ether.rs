@@ -37,7 +37,7 @@ impl<T: AsRef<[u8]>> Frame<T> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Type {
     Ipv6,
     Unknown(u16),
