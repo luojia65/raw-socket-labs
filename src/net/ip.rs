@@ -114,8 +114,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
     pub fn length(&self) -> u16 {
         NetworkEndian::read_u16(&self.inner.as_ref()[field::LENGTH])
     }
-    pub fn next_header(&self) -> u8 {
-        self.inner.as_ref()[field::NXT_HDR]
+    pub fn next_header(&self) -> Protocol {
+        self.inner.as_ref()[field::NXT_HDR].into()
     }
     pub fn hop_limit(&self) -> u8 {
         self.inner.as_ref()[field::HOP_LIMIT]
@@ -128,6 +128,30 @@ impl<T: AsRef<[u8]>> Packet<T> {
     }
     pub fn payload(&self) -> &[u8] {
         &self.inner.as_ref()[40..] // todo
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Protocol {
+    Icmpv6, // 0x3A, ICMP v6
+    Unknown(u8),
+}
+
+impl From<u8> for Protocol {
+    fn from(src: u8) -> Self {
+        match src {
+            0x3A => Protocol::Icmpv6,
+            others => Protocol::Unknown(others),
+        }
+    }
+}
+
+impl From<Protocol> for u8 {
+    fn from(src: Protocol) -> u8 {
+        match src {
+            Protocol::Icmpv6 => 0x3A,
+            Protocol::Unknown(others) => others
+        }
     }
 }
 
