@@ -1,6 +1,7 @@
 // Ip address; only IPv6 is supported
 
 use byteorder::{ByteOrder, NetworkEndian};
+use core::ops::Range;
 use core::fmt;
 
 // Ipv6 address
@@ -81,29 +82,27 @@ impl<T: AsRef<[u8]>> Packet<T> {
 
 // Ref: smoltcp
 // https://tools.ietf.org/html/rfc2460#section-3.
-mod field {
-    use core::ops::Range;
-    // 4-bit version number, 8-bit traffic class, and the
-    // 20-bit flow label.
-    pub const VER_TC_FLOW: Range<usize> = 0..4;
-    // 16-bit value representing the length of the payload.
-    // Note: Options are included in this length.
-    pub const LENGTH:      Range<usize> = 4..6;
-    // 8-bit value identifying the type of header following this
-    // one. Note: The same numbers are used in IPv4.
-    pub const NXT_HDR:     usize = 6;
-    // 8-bit value decremented by each node that forwards this
-    // packet. The packet is discarded when the value is 0.
-    pub const HOP_LIMIT:   usize = 7;
-    // IPv6 address of the source node.
-    pub const SRC_ADDR:    Range<usize> = 8..24;
-    // IPv6 address of the destination node.
-    pub const DST_ADDR:    Range<usize> = 24..40;
-}
 
 impl<T: AsRef<[u8]>> Packet<T> {
+    // 4-bit version number, 8-bit traffic class, and the
+    // 20-bit flow label.
+    const VER_TC_FLOW: Range<usize> = 0..4;
+    // 16-bit value representing the length of the payload.
+    // Note: Options are included in this length.
+    const LENGTH:      Range<usize> = 4..6;
+    // 8-bit value identifying the type of header following this
+    // one. Note: The same numbers are used in IPv4.
+    const NXT_HDR:     usize = 6;
+    // 8-bit value decremented by each node that forwards this
+    // packet. The packet is discarded when the value is 0.
+    const HOP_LIMIT:   usize = 7;
+    // IPv6 address of the source node.
+    const SRC_ADDR:    Range<usize> = 8..24;
+    // IPv6 address of the destination node.
+    const DST_ADDR:    Range<usize> = 24..40;
+    
     pub fn version(&self) -> u8 {
-        self.inner.as_ref()[field::VER_TC_FLOW.start] >> 4
+        self.inner.as_ref()[Self::VER_TC_FLOW.start] >> 4
     }
     pub fn traffic_class(&self) -> u8 {
         ((NetworkEndian::read_u16(&self.inner.as_ref()[0..2]) & 0x0ff0) >> 4) as u8
@@ -112,19 +111,19 @@ impl<T: AsRef<[u8]>> Packet<T> {
         NetworkEndian::read_u24(&self.inner.as_ref()[1..4]) & 0x000fffff
     }
     pub fn length(&self) -> u16 {
-        NetworkEndian::read_u16(&self.inner.as_ref()[field::LENGTH])
+        NetworkEndian::read_u16(&self.inner.as_ref()[Self::LENGTH])
     }
     pub fn next_header(&self) -> Protocol {
-        self.inner.as_ref()[field::NXT_HDR].into()
+        self.inner.as_ref()[Self::NXT_HDR].into()
     }
     pub fn hop_limit(&self) -> u8 {
-        self.inner.as_ref()[field::HOP_LIMIT]
+        self.inner.as_ref()[Self::HOP_LIMIT]
     }
     pub fn dst_addr(&self) -> Address {
-        Address::from_bytes(&self.inner.as_ref()[field::DST_ADDR])
+        Address::from_bytes(&self.inner.as_ref()[Self::DST_ADDR])
     }
     pub fn src_addr(&self) -> Address {
-        Address::from_bytes(&self.inner.as_ref()[field::SRC_ADDR])
+        Address::from_bytes(&self.inner.as_ref()[Self::SRC_ADDR])
     }
     pub fn payload(&self) -> &[u8] {
         &self.inner.as_ref()[40..] // todo
