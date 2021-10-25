@@ -154,6 +154,13 @@ impl From<Protocol> for u8 {
     }
 }
 
+/*
+pub struct Subnet<A> {
+    network: A,
+    prefix: u8,
+}
+*/
+
 #[cfg(test)]
 mod tests {
     use super::Address;
