@@ -13,14 +13,15 @@ pub struct Address {
 impl Address {
     pub const UNSPECIFIED: Self = Address::from_segments([0, 0, 0, 0, 0, 0, 0, 0]);
     pub const LOOPBACK: Self = Address::from_segments([0, 0, 0, 0, 0, 0, 0, 1]);
-    pub const fn from_segments(segments: [u16; 8]) -> Self {
+    pub const fn from_segments(segments: [u16; 8]) -> Address {
+        // 辣鸡Rust
         let repr = ((segments[0] as u128) << 112) | ((segments[1] as u128) << 96) |
             ((segments[2] as u128) << 80) | ((segments[3] as u128) << 64) |
             ((segments[4] as u128) << 48) | ((segments[5] as u128) << 32) |
             ((segments[6] as u128) << 16) | (segments[7] as u128);
         Self { repr }
     }
-    pub fn from_bytes(src: &[u8]) -> Self {
+    pub fn from_bytes(src: &[u8]) -> Address {
         let repr = NetworkEndian::read_u128(&src);
         Address { repr }
     }
@@ -198,12 +199,11 @@ impl Subnet {
         Subnet { network: Address::from_segments([0xff00, 0, 0, 0, 0, 0, 0, 0]), prefix: 8 };
     pub const LINK_LOCAL_UNICAST: Subnet =
         Subnet { network: Address::from_segments([0xfe80, 0, 0, 0, 0, 0, 0, 0]), prefix: 10 };
-    #[inline]
+    // get network part of subnet
     pub fn network(self) -> Address {
         self.network
     }
-    /// Gets the prefix length component of this subnet.
-    #[inline]
+    // get prefix length, smaller number, larger the network
     pub fn prefix(self) -> u8 {
         self.prefix
     }
