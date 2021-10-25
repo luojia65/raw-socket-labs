@@ -155,8 +155,8 @@ impl From<Protocol> for u8 {
 }
 
 /*
-pub struct Subnet<A> {
-    network: A,
+pub struct Subnet {
+    network: Address,
     prefix: u8,
 }
 */
