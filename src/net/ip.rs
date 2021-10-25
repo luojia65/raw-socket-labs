@@ -198,6 +198,15 @@ impl Subnet {
         Subnet { network: Address::from_segments([0xff00, 0, 0, 0, 0, 0, 0, 0]), prefix: 8 };
     pub const LINK_LOCAL_UNICAST: Subnet =
         Subnet { network: Address::from_segments([0xfe80, 0, 0, 0, 0, 0, 0, 0]), prefix: 10 };
+    #[inline]
+    pub fn network(self) -> Address {
+        self.network
+    }
+    /// Gets the prefix length component of this subnet.
+    #[inline]
+    pub fn prefix(self) -> u8 {
+        self.prefix
+    }
 }
 
 impl fmt::Display for Subnet {
