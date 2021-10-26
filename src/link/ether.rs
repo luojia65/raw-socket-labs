@@ -30,7 +30,16 @@ impl<T: AsRef<[u8]>> Frame<T> {
         let ty = NetworkEndian::read_u16(&self.inner.as_ref()[Self::ETHERTYPE]);
         Type::from(ty)
     }
-    pub fn payload(&self) -> &[u8] {
+    pub fn header_len(&self) -> usize {
+        Self::PAYLOAD.start
+    }
+    pub fn into_inner(self) -> T {
+        self.inner
+    }
+}
+
+impl<'a, T: AsRef<[u8]> + ?Sized> Frame<&'a T> {
+    pub fn payload(&self) -> &'a [u8] {
         &self.inner.as_ref()[Self::PAYLOAD]
     }
 }
