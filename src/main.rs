@@ -32,12 +32,12 @@ fn main() {
                 );
                 let packet = IpPacket::new(frame.payload());
                 println!(
-                    "Ipv6 {} to {}, Ver {}, TrfCls {}, FlwLbl {}, Len {}, NxtHdr {:?}, HopLim {}",
+                    "Ipv6 {} to {}, Ver {}, TrfCls {}, FlwLbl {}, Len {}, NxtHdr :?, HopLim {}",
                     packet.src_addr(), packet.dst_addr(),
                     packet.version(), packet.traffic_class(), packet.flow_label(),
-                    packet.length(), packet.next_header(), packet.hop_limit(),
+                    packet.length(), /*packet.next_header(),*/ packet.hop_limit(),
                 );
-                println!("Payload = {:?}", packet.payload());
+                // println!("Payload = {:?}", packet.payload());
                 /*
                 if let IpPayload::Icmpv6(icmp) = packet.payload() {
                     match icmp.message() {
@@ -46,15 +46,15 @@ fn main() {
                     }
                 }
                 */
-                if packet.next_header() == IpProtocol::Icmpv6 {
-                    let icmp = IcmpPacket::new(packet.payload());
-                    println!("Icmpv6 {:?}, Code {}, Sum {}", icmp.packet_type(), icmp.code(), icmp.checksum());
-                    if icmp.packet_type() == IcmpType::EchoRequest {
-                        let echo = EchoRequest::new(icmp.payload());
-                        let data = String::from_utf8_lossy(echo.data());
-                        println!("EchoRequest Id {}, SeqNo {}, Data {}", echo.identifier(), echo.sequence_number(), data);
-                    }
-                }
+                // if packet.next_header() == IpProtocol::Icmpv6 {
+                //     let icmp = IcmpPacket::new(packet.payload());
+                //     println!("Icmpv6 {:?}, Code {}, Sum {}", icmp.packet_type(), icmp.code(), icmp.checksum());
+                //     if icmp.packet_type() == IcmpType::EchoRequest {
+                //         let echo = EchoRequest::new(icmp.payload());
+                //         let data = String::from_utf8_lossy(echo.data());
+                //         println!("EchoRequest Id {}, SeqNo {}, Data {}", echo.identifier(), echo.sequence_number(), data);
+                //     }
+                // }
             }
             Err(ref err) if err.kind() == std::io::ErrorKind::WouldBlock => continue,
             Err(err) => panic!("{}", err),

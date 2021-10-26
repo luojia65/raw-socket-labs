@@ -117,6 +117,8 @@ impl<T: AsRef<[u8]>> Packet<T> {
     const SRC_ADDR:    Range<usize> = 8..24;
     // IPv6 address of the destination node.
     const DST_ADDR:    Range<usize> = 24..40;
+    // end of IPv6 header
+    const IP_HEADER_END: usize = 40;
     
     pub fn version(&self) -> u8 {
         self.inner.as_ref()[Self::VER_TC_FLOW.start] >> 4
@@ -130,9 +132,6 @@ impl<T: AsRef<[u8]>> Packet<T> {
     pub fn length(&self) -> u16 {
         NetworkEndian::read_u16(&self.inner.as_ref()[Self::LENGTH])
     }
-    pub fn next_header(&self) -> Protocol {
-        self.inner.as_ref()[Self::NXT_HDR].into()
-    }
     pub fn hop_limit(&self) -> u8 {
         self.inner.as_ref()[Self::HOP_LIMIT]
     }
@@ -142,9 +141,100 @@ impl<T: AsRef<[u8]>> Packet<T> {
     pub fn src_addr(&self) -> Address {
         Address::from_bytes(&self.inner.as_ref()[Self::SRC_ADDR])
     }
-    pub fn payload(&self) -> &[u8] {
-        &self.inner.as_ref()[40..] // todo
+    pub fn extensions(&self) -> Extensions {
+        Extensions {
+            cur_header: self.inner.as_ref()[Self::NXT_HDR],
+            buf: self.inner.as_ref()
+        }
     }
+}
+
+// Info about IPv6 header: https://tools.ietf.org/html/rfc8200
+
+pub struct Extensions<'a> {
+    cur_header: u8,
+    buf: &'a [u8],
+}
+// pub struct HeadersMut { ... }
+
+/*
+Hop-by-Hop Options 	0 	
+  Options that need to be examined by all devices on the path
+Routing 	43 	
+  Methods to specify the route for a datagram (used with Mobile IPv6)
+Fragment 	44 	
+  Contains parameters for fragmentation of datagrams
+Authentication Header (AH) 	51 	
+  Contains information used to verify the authenticity of most parts of the packet
+Encapsulating Security Payload (ESP) 	50 	
+  Carries encrypted data for secure communication
+Destination Options (before upper-layer header) 	60 	
+  Options that need to be examined only by the destination of the packet 
+*/
+
+impl<'a> Iterator for Extensions<'a> {
+    type Item = Result<ExtensionHeader<'a>, ParseExtensionError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        const NXT_HEADER: usize = 0;
+        let (body, len) = match self.cur_header {
+            // 0 => {}, // Hop-by-hop
+            // 43 => {}, // Routing
+            44 => (ExtensionBody::Fragment(&self.buf[2..]), 8),
+            0x3a => (ExtensionBody::Payload(Protocol::Icmpv6, self.buf), 0), // todo: ??? finished
+            unknown => return Some(Err(ParseExtensionError::UnknownHeaderValue(unknown))),
+        };
+        if self.buf.len() < 1 {
+            return Some(Err(ParseExtensionError::BufferExhausted));
+        }
+        self.cur_header = self.buf[NXT_HEADER];
+        self.buf = &self.buf[len..];
+        let ans = ExtensionHeader {
+            next_header: self.cur_header,
+            body
+        };
+        Some(Ok(ans))
+    }
+}
+
+pub struct ExtensionHeader<'a> {
+    next_header: u8,
+    body: ExtensionBody<'a>,
+}
+
+pub enum ExtensionBody<'a> {
+    HopByHopOptions(),
+    Fragment(&'a [u8]),
+    DestinationOptions(),
+    Payload(Protocol, &'a [u8]),
+}
+
+pub struct FragmentData<T> {
+    inner: T
+}
+
+impl<T: AsRef<[u8]>> FragmentData<T> {
+    // 16-bit field containing the fragment offset, reserved and more fragments values.
+    const OFFSET_MORE: Range<usize> = 0..2;
+    // 32-bit field identifying the fragmented packet
+    const IDENTIFICATION: Range<usize> = 2..6;
+    #[inline] fn new(inner: T) -> Self {
+        debug_assert!(inner.as_ref().len() == 6);
+        Self { inner }
+    }
+    pub fn fragment_offset(&self) -> u16 {
+        NetworkEndian::read_u16(&self.inner.as_ref()[Self::OFFSET_MORE]) >> 3
+    }
+    pub fn more_fragments(&self) -> bool {
+        (&self.inner.as_ref()[1] & 0x1) == 0x01
+    }
+    pub fn identification(&self) -> u32 {
+        NetworkEndian::read_u32(&self.inner.as_ref()[Self::IDENTIFICATION])
+    }
+}
+
+pub enum ParseExtensionError {
+    UnknownHeaderValue(u8),
+    BufferExhausted,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
