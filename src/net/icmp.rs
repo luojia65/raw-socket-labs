@@ -30,7 +30,10 @@ impl<T: AsRef<[u8]>> Packet<T> {
     pub fn checksum(&self) -> u16 {
         NetworkEndian::read_u16(&self.inner.as_ref()[Self::CHECKSUM])
     }
-    pub fn payload(&self) -> &[u8] {
+}
+
+impl<'a, T: AsRef<[u8]> + ?Sized> Packet<&'a T> {
+    pub fn payload(&self) -> &'a [u8] {
         &self.inner.as_ref()[4..]
     }
 }
@@ -80,7 +83,10 @@ impl<T: AsRef<[u8]>> EchoRequest<T> {
     pub fn sequence_number(&self) -> u16 {
         NetworkEndian::read_u16(&self.inner.as_ref()[Self::SEQUENCE_NUMBER])
     }
-    pub fn data(&self) -> &[u8] {
-        &self.inner.as_ref()[4..]
+}
+
+impl<'a, T: AsRef<[u8]> + ?Sized> EchoRequest<&'a T> {
+    pub fn data(&self) -> &'a [u8] {
+        &self.inner.as_ref()[Self::SEQUENCE_NUMBER.end..]
     }
 }
