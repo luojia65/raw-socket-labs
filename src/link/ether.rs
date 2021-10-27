@@ -6,18 +6,18 @@ pub struct Frame<T> {
     inner: T
 }
 
-impl<T: AsRef<[u8]>> Frame<T> {
+impl<T> Frame<T> {
+    const DEST_ADDR: Range<usize> = 0..6;
+    const SRC_ADDR: Range<usize> = 6..12;
+    const ETHERTYPE: Range<usize> = 12..14;
+    const PAYLOAD: RangeFrom<usize> = 14..;
+
     pub fn new(inner: T) -> Self {
         Self { inner }
     }
 }
 
-
 impl<T: AsRef<[u8]>> Frame<T> {
-    const DEST_ADDR: Range<usize> = 0..6;
-    const SRC_ADDR: Range<usize> = 6..12;
-    const ETHERTYPE: Range<usize> = 12..14;
-    const PAYLOAD: RangeFrom<usize> = 14..;
 
     pub fn dst_addr(&self) -> Address {
         Address::from_bytes(&self.inner.as_ref()[Self::DEST_ADDR])
@@ -30,9 +30,6 @@ impl<T: AsRef<[u8]>> Frame<T> {
         let ty = NetworkEndian::read_u16(&self.inner.as_ref()[Self::ETHERTYPE]);
         Type::from(ty)
     }
-    pub fn header_len(&self) -> usize {
-        Self::PAYLOAD.start
-    }
     pub fn into_inner(self) -> T {
         self.inner
     }
@@ -41,6 +38,24 @@ impl<T: AsRef<[u8]>> Frame<T> {
 impl<'a, T: AsRef<[u8]> + ?Sized> Frame<&'a T> {
     pub fn payload(&self) -> &'a [u8] {
         &self.inner.as_ref()[Self::PAYLOAD]
+    }
+}
+
+impl<T: AsMut<[u8]>> Frame<T> {
+    pub fn set_dst_addr(&mut self, dst_addr: Address) {
+        self.inner.as_mut()[Self::DEST_ADDR].copy_from_slice(&dst_addr.to_bytes())
+    }
+    pub fn set_src_addr(&mut self, src_addr: Address) {
+        self.inner.as_mut()[Self::SRC_ADDR].copy_from_slice(&src_addr.to_bytes())
+    }
+    pub fn set_ethertype(&mut self, ty: Type) {
+        NetworkEndian::write_u16(&mut self.inner.as_mut()[Self::ETHERTYPE], ty.into());
+    }
+}
+
+impl<'a, T: AsMut<[u8]> + ?Sized> Frame<&'a mut T> {
+    pub fn payload_mut(&mut self) -> &mut [u8] {
+        &mut self.inner.as_mut()[Self::PAYLOAD]
     }
 }
 

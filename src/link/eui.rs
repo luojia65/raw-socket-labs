@@ -5,13 +5,19 @@ use core::fmt;
 // is also called mac address
 /// EUI-48 Address
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Eui48(pub [u8; 6]);
+pub struct Eui48([u8; 6]);
 
 impl Eui48 {
+    pub fn new(bytes: [u8; 6]) -> Self {
+        Self(bytes)
+    }
     pub fn from_bytes(src: &[u8]) -> Self {
         let mut bytes = [0; 6];
         bytes.copy_from_slice(src);
         Self(bytes)
+    }
+    pub fn to_bytes(self) -> [u8; 6] {
+        self.0
     }
 }
 
@@ -24,15 +30,15 @@ impl FromStr for Eui48 {
         let mut part_idx = 0;
         let mut total_idx = 0;
         let mut sep = false;
-        let mut iter = s.chars();
+        let mut iter = s.bytes();
         loop {
-            let ch = iter.next();
-            match ch {
-                Some(ch @ ('0' ..= '9' | 'a' ..= 'f' | 'A' ..= 'F')) if !sep => {
-                    let digit = match ch {
-                        '0' ..= '9' => ch as u8 - b'0',
-                        'a' ..= 'f' => ch as u8 - b'a' + 10,
-                        'A' ..= 'F' => ch as u8 - b'A' + 10,
+            let byte = iter.next();
+            match byte {
+                Some(byte @ (b'0' ..= b'9' | b'a' ..= b'f' | b'A' ..= b'F')) if !sep => {
+                    let digit = match byte {
+                        b'0' ..= b'9' => byte - b'0',
+                        b'a' ..= b'f' => byte - b'a' + 10,
+                        b'A' ..= b'F' => byte - b'A' + 10,
                         _ => unreachable!(),
                     };
                     tmp <<= 4;
@@ -42,7 +48,7 @@ impl FromStr for Eui48 {
                         sep = true;
                     }
                 },
-                Some(':' | '-') if sep && total_idx < 6 => {
+                Some(b':' | b'-') if sep && total_idx < 6 => {
                     ans[total_idx] = tmp;
                     tmp = 0;
                     total_idx += 1;
@@ -77,6 +83,8 @@ mod test {
     fn eui48_parse() {
         assert_eq!("00-01-02-03-04-05".parse(), Ok(Eui48([0, 1, 2, 3, 4, 5])));
         assert_eq!("1a-b2-3C-D4-50-06".parse(), Ok(Eui48([0x1a, 0xb2, 0x3c, 0xd4, 0x50, 0x06])));
+        assert!("1a-b2-3C-D4-50-6".parse::<Eui48>().is_err());
+        assert!("1a-b2b-3C-D4-50-06".parse::<Eui48>().is_err());
         assert!("1a-b2-3C-D4-50-".parse::<Eui48>().is_err());
         assert!("1a-b2-3C-D4-50-06-07".parse::<Eui48>().is_err());
         assert!("1a-b2-3G-D4-50-06".parse::<Eui48>().is_err());

@@ -8,19 +8,18 @@ pub struct Packet<T> {
     inner: T
 }
 
-impl<T: AsRef<[u8]>> Packet<T> {
+impl<T> Packet<T> {
     pub fn new(inner: T) -> Self {
         Self { inner }
     }
+    const TYPE: usize = 0;
+    const CODE: usize = 1;
+    const CHECKSUM: Range<usize> = 2..4;
 }
 
 // ICMPv6: See https://tools.ietf.org/html/rfc4443
 
 impl<T: AsRef<[u8]>> Packet<T> {
-    const TYPE: usize = 0;
-    const CODE: usize = 1;
-    const CHECKSUM: Range<usize> = 2..4;
-
     pub fn packet_type(&self) -> Type {
         self.inner.as_ref()[Self::TYPE].into()
     }
@@ -35,6 +34,24 @@ impl<T: AsRef<[u8]>> Packet<T> {
 impl<'a, T: AsRef<[u8]> + ?Sized> Packet<&'a T> {
     pub fn payload(&self) -> &'a [u8] {
         &self.inner.as_ref()[4..]
+    }
+}
+
+impl<T: AsMut<[u8]>> Packet<T> {
+    pub fn set_packet_type(&mut self, ty: Type) {
+        self.inner.as_mut()[Self::TYPE] = ty.into()
+    }
+    pub fn set_code(&mut self, code: u8) {
+        self.inner.as_mut()[Self::CODE] = code
+    }
+    pub fn set_checksum(&mut self, checksum: u16) {
+        NetworkEndian::write_u16(&mut self.inner.as_mut()[Self::CHECKSUM], checksum)
+    }
+}
+
+impl<'a, T: AsMut<[u8]> + ?Sized> Packet<&'a mut T> {
+    pub fn payload_mut(&mut self) -> &mut [u8] {
+        &mut self.inner.as_mut()[Self::CHECKSUM.end..]
     }
 }
 

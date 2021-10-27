@@ -1,63 +1,34 @@
-mod raw_socket_sys;
+pub mod raw_socket_sys;
+pub mod link;
+pub mod net;
+
 use raw_socket_sys::*;
-mod link;
 use link::*;
-mod net;
 use net::*;
 
 fn main() {
     let mut socket = RawSocketDesc::new("eth0").unwrap();
-    println!("{:?}", socket);
-
     socket.bind_interface().unwrap();
-    println!("bind interface success");
     let mtu = socket.interface_mtu().unwrap();
     println!("mtu value: {}", mtu);
+
+    let virtual_dev_eui48 = "01:02:03:04:05:06".parse().unwrap();
+    let virtual_dev_ip_addr = IpAddress::from([0xfe80, 0, 0, 0, 0, 0, 0x1234, 0x5678]);
+
     let mut buf = vec![0u8; mtu];
-    loop {
-        match socket.recv(&mut buf) {
-            Ok(len) => {
-                // println!("received: {:x?}", &buf[..len]);
-                let received = &buf[..len];
-                let frame = EthernetFrame::new(received);
-                if frame.ethertype() != EthernetProtocol::Ipv6 {
-                    continue;
-                }
-                println!(
-                    "From {} To {}, Type {:?}, Payload ({} bytes)", 
-                    frame.src_addr(),
-                    frame.dst_addr(),
-                    frame.ethertype(),
-                    frame.payload().len(),
-                );
-                let packet = IpPacket::new(frame.payload());
-                println!(
-                    "Ipv6 {} to {}, Ver {}, TrfCls {}, FlwLbl {}, Len {}, NxtHdr :?, HopLim {}",
-                    packet.src_addr(), packet.dst_addr(),
-                    packet.version(), packet.traffic_class(), packet.flow_label(),
-                    packet.payload_len(), /*packet.next_header(),*/ packet.hop_limit(),
-                );
-                // println!("Payload = {:?}", packet.payload());
-                /*
-                if let IpPayload::Icmpv6(icmp) = packet.payload() {
-                    match icmp.message() {
-                        EchoRequest(msg) => {} ...
-                        _ => ...
-                    }
-                }
-                */
-                if packet.next_header() == IpProtocol::Icmpv6 {
-                    let icmp = IcmpPacket::new(packet.payload());
-                    println!("Icmpv6 {:?}, Code {}, Sum {}", icmp.packet_type(), icmp.code(), icmp.checksum());
-                    if icmp.packet_type() == IcmpType::EchoRequest {
-                        let echo = EchoRequest::new(icmp.payload());
-                        let data = String::from_utf8_lossy(echo.data());
-                        println!("EchoRequest Id {}, SeqNo {}, Data {}", echo.identifier(), echo.sequence_number(), data);
-                    }
-                }
-            }
-            Err(ref err) if err.kind() == std::io::ErrorKind::WouldBlock => continue,
-            Err(err) => panic!("{}", err),
-        }
-    }
+    let mut eth_frame = EthernetFrame::new(&mut buf);
+    eth_frame.set_src_addr(virtual_dev_eui48);
+    eth_frame.set_dst_addr("00-15-5D-5E-97-B1".parse().unwrap());
+    eth_frame.set_ethertype(EthernetProtocol::Ipv6);
+    let mut ip = IpPacket::new(eth_frame.payload_mut());
+    ip.set_src_addr(virtual_dev_ip_addr);
+    ip.set_dst_addr(IpAddress::from([0xfe80, 0, 0, 0, 0xc86f, 0x2dff, 0x7dfa, 0xfd40]));
+    ip.set_version(6);
+    let mut icmp = IcmpPacket::new(ip.payload_mut());
+    icmp.set_packet_type(IcmpType::EchoRequest);
+    icmp.set_code(0);
+    icmp.payload_mut()[..4].copy_from_slice(&[1, 2, 3, 4]);
+    ip.set_payload_len(8);
+
+    socket.send(&buf).unwrap();
 }

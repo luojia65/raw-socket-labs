@@ -3,6 +3,7 @@
 use byteorder::{ByteOrder, NetworkEndian};
 use core::ops::Range;
 use core::fmt;
+// use core::str::FromStr;
 
 // Ipv6 address
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -87,20 +88,33 @@ impl fmt::Display for Address {
     }
 }
 
+// impl FromStr for Address {
+//     type Err = IpAddrParseError;
+//     fn from_str(s: &str) -> Result<Self, Self::Err> {
+//         let mut segments = [0u16; 8];
+//         let mut it = s.bytes();
+//         Ok(Address::from_segments(segments))
+//     }
+// }
+
+// /// IPv6 address parse error
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// pub struct IpAddrParseError(());
+
 pub struct Packet<T> {
     inner: T,
 }
 
-impl<T: AsRef<[u8]>> Packet<T> {
+impl<T> Packet<T> {
     pub fn new(inner: T) -> Self {
         Self { inner }
     }
-}
+    pub fn into_inner(self) -> T {
+        self.inner
+    }
+    // Ref: smoltcp
+    // https://tools.ietf.org/html/rfc2460#section-3.
 
-// Ref: smoltcp
-// https://tools.ietf.org/html/rfc2460#section-3.
-
-impl<T: AsRef<[u8]>> Packet<T> {
     // 4-bit version number, 8-bit traffic class, and the
     // 20-bit flow label.
     const VER_TC_FLOW: Range<usize> = 0..4;
@@ -119,7 +133,10 @@ impl<T: AsRef<[u8]>> Packet<T> {
     const DST_ADDR:    Range<usize> = 24..40;
     // end of IPv6 header
     const IP_HEADER_END: usize = 40;
-    
+}
+
+
+impl<T: AsRef<[u8]>> Packet<T> {
     pub fn version(&self) -> u8 {
         self.inner.as_ref()[Self::VER_TC_FLOW.start] >> 4
     }
@@ -144,17 +161,52 @@ impl<T: AsRef<[u8]>> Packet<T> {
     pub fn src_addr(&self) -> Address {
         Address::from_bytes(&self.inner.as_ref()[Self::SRC_ADDR])
     }
-    pub fn header_len(&self) -> usize {
-        Self::IP_HEADER_END
-    }
-    pub fn into_inner(self) -> T {
-        self.inner
-    }
 }
 
 impl<'a, T: AsRef<[u8]> + ?Sized> Packet<&'a T> {
     pub fn payload(&self) -> &'a [u8] {
         &self.inner.as_ref()[Self::IP_HEADER_END..]
+    }
+}
+
+impl<T: AsMut<[u8]>> Packet<T> {
+    pub fn set_version(&mut self, version: u8) {
+        debug_assert!(version <= 0x0f);
+        let data = &mut self.inner.as_mut()[Self::VER_TC_FLOW];
+        data[0] = (data[0] & !0xf0) | ((version & 0x0f) << 4);
+    }
+    pub fn set_traffic_class(&mut self, traffic_class: u8) {
+        let data = &mut self.inner.as_mut()[Self::VER_TC_FLOW];
+        data[0] = (data[0] & !0x0f) | ((traffic_class & 0xf0) >> 4);
+        data[1] = (data[1] & !0xf0) | ((traffic_class & 0x0f) << 4);
+    }
+    pub fn set_flow_label(&mut self, flow_label: u32) {
+        debug_assert!(flow_label <= 0x000fffff);
+        let data = &mut self.inner.as_mut()[Self::VER_TC_FLOW];
+        data[1] = (data[1] & !0x0f) | ((flow_label & 0x0f0000) >> 16) as u8;
+        data[2] = ((flow_label & 0x00ff00) >> 8) as u8;
+        data[3] = (flow_label & 0x0000ff) as u8;
+    }
+    pub fn set_payload_len(&mut self, payload_len: u16) {
+        NetworkEndian::write_u16(&mut self.inner.as_mut()[Self::LENGTH], payload_len)
+    }
+    pub fn set_next_header(&mut self, protocol: Protocol) {
+        self.inner.as_mut()[Self::NXT_HDR] = protocol.into()
+    }
+    pub fn set_hop_limit(&mut self, hop_limit: u8) {
+        self.inner.as_mut()[Self::HOP_LIMIT] = hop_limit
+    }
+    pub fn set_dst_addr(&mut self, address: Address) {
+        NetworkEndian::write_u128(&mut self.inner.as_mut()[Self::DST_ADDR], address.repr)
+    }
+    pub fn set_src_addr(&mut self, address: Address) {
+        NetworkEndian::write_u128(&mut self.inner.as_mut()[Self::SRC_ADDR], address.repr)
+    }
+}
+
+impl<'a, T: AsMut<[u8]> + ?Sized> Packet<&'a mut T> {
+    pub fn payload_mut(&mut self) -> &mut [u8] {
+        &mut self.inner.as_mut()[Self::IP_HEADER_END..]
     }
 }
 
@@ -240,6 +292,37 @@ mod tests {
         assert_eq!("2001:DB8::8:800:200C:417A", Address::from([0x2001, 0xdb8, 0, 0, 8, 0x800, 0x200c, 0x417a]).to_string());
         assert_eq!("2001:DB8:0:CD30::", Address::from([0x2001, 0xdb8, 0, 0xcd30, 0, 0, 0, 0]).to_string());
     }
+    // #[test]
+    // fn ip_address_parse() {
+    //     let addrs = [
+    //         "::",
+    //         "::1",
+    //         "FE80::1234:5678", 
+    //         "FF01::101", 
+    //         "2001:DB8::8:800:200C:417A", 
+    //         "2001:DB8:0:CD30::",
+    //         "FD12:3456:7890:ABCD:1122:3344:5566:7788", 
+    //         "FD12:3456:7890:ABCD:1122:3344:5566::", 
+    //         "FD12:3456:7890:ABCD:1122:3344::", 
+    //         "::3456:7890:ABCD:1122:3344:5566:7788", 
+    //         "::7890:ABCD:1122:3344:5566:7788", 
+    //     ];
+    //     for addr_str in addrs {
+    //         let addr = addr_str.parse::<Address>().unwrap();
+    //         // assert_eq!(addr_str, addr.to_string());
+    //     }
+    //     let wrong_addrs = [
+    //         "::1::",
+    //         "FF01:::101", 
+    //         "2001:DB8::8:800::200C:417A",
+    //         ":FD12:3456:7890:ABCD:1122:3344:5566:7788", 
+    //         "FD12:3456:7890:ABCD:1122:3344:5566:7788:", 
+    //         "FD12:3456:7890:ABCD:1122:3344:5566:7788:9", 
+    //     ];
+    //     for addr_str in wrong_addrs {
+    //         assert!(addr_str.parse::<Address>().is_err());
+    //     }
+    // }
     #[test]
     fn ip_address_segments_octets() {
         assert_eq!(
