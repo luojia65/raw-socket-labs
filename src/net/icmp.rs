@@ -84,16 +84,16 @@ pub struct EchoRequest<T> {
     inner: T
 }
 
-impl<T: AsRef<[u8]>> EchoRequest<T> {
+impl<T> EchoRequest<T> {
     pub fn new(inner: T) -> Self {
         Self { inner }
     }
-}
-
-impl<T: AsRef<[u8]>> EchoRequest<T> {
     const IDENTIFIER: Range<usize> = 0..2;
     const SEQUENCE_NUMBER: Range<usize> = 2..4;
     
+}
+
+impl<T: AsRef<[u8]>> EchoRequest<T> {
     pub fn identifier(&self) -> u16 {
         NetworkEndian::read_u16(&self.inner.as_ref()[Self::IDENTIFIER])
     }
@@ -105,5 +105,20 @@ impl<T: AsRef<[u8]>> EchoRequest<T> {
 impl<'a, T: AsRef<[u8]> + ?Sized> EchoRequest<&'a T> {
     pub fn data(&self) -> &'a [u8] {
         &self.inner.as_ref()[Self::SEQUENCE_NUMBER.end..]
+    }
+}
+
+impl<T: AsMut<[u8]>> EchoRequest<T> {
+    pub fn set_identifier(&mut self, value: u16) {
+        NetworkEndian::write_u16(&mut self.inner.as_mut()[Self::IDENTIFIER], value)
+    }
+    pub fn set_sequence_number(&mut self, value: u16) {
+        NetworkEndian::write_u16(&mut self.inner.as_mut()[Self::SEQUENCE_NUMBER], value)
+    }
+}
+
+impl<'a, T: AsMut<[u8]> + ?Sized> EchoRequest<&'a mut T> {
+    pub fn data_mut(&mut self) -> &mut [u8] {
+        &mut self.inner.as_mut()[Self::SEQUENCE_NUMBER.end..]
     }
 }
