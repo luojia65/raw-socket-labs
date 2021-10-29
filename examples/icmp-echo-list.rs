@@ -29,10 +29,10 @@ fn main() {
                 );
                 let packet = IpPacket::new(frame.payload());
                 println!(
-                    "Ipv6 {} to {}, Ver {}, TrfCls {}, FlwLbl {}, Len {}, NxtHdr :?, HopLim {}",
+                    "Ipv6 {} to {}, Ver {}, TrfCls {}, FlwLbl {}, Len {}, NxtHdr {:?}, HopLim {}",
                     packet.src_addr(), packet.dst_addr(),
                     packet.version(), packet.traffic_class(), packet.flow_label(),
-                    packet.payload_len(), /*packet.next_header(),*/ packet.hop_limit(),
+                    packet.payload_len(), packet.next_header(), packet.hop_limit(),
                 );
                 // println!("Payload = {:?}", packet.payload());
                 /*
