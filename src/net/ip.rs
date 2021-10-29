@@ -230,7 +230,6 @@ impl<T> Packet<T> {
     const IP_HEADER_END: usize = 40;
 }
 
-
 impl<T: AsRef<[u8]>> Packet<T> {
     pub fn version(&self) -> u8 {
         self.inner.as_ref()[Self::VER_TC_FLOW.start] >> 4
