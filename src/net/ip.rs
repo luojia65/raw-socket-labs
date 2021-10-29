@@ -3,10 +3,10 @@
 use byteorder::{ByteOrder, NetworkEndian};
 use core::ops::Range;
 use core::fmt;
-// use core::str::FromStr;
+use core::str::FromStr;
 
 // Ipv6 address
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Address {
     repr: u128,
 }
@@ -88,18 +88,113 @@ impl fmt::Display for Address {
     }
 }
 
-// impl FromStr for Address {
-//     type Err = IpAddrParseError;
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         let mut segments = [0u16; 8];
-//         let mut it = s.bytes();
-//         Ok(Address::from_segments(segments))
-//     }
-// }
+impl FromStr for Address {
+    type Err = ParseAddressError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut segments = [0u16; 8];
+        let mut it = s.bytes().peekable();
+        let mut cur_num = 0;
+        let mut cur_num_len = 0;
+        let mut is_start = true;
+        let mut segment_idx = 0;
+        loop {
+            match it.next() {
+                Some(byte @ (b'0'..=b'9' | b'a' ..= b'f' | b'A' ..= b'F')) => {
+                    if cur_num_len >= 4 {
+                        return Err(ParseAddressError(()))
+                    }
+                    let digit = match byte {
+                        b'0' ..= b'9' => byte - b'0',
+                        b'a' ..= b'f' => byte - b'a' + 10,
+                        b'A' ..= b'F' => byte - b'A' + 10,
+                        _ => unreachable!(),
+                    } as u16;
+                    cur_num_len += 1;
+                    cur_num <<= 4;
+                    cur_num |= digit;
+                    is_start = false;
+                }
+                Some(b':') => {
+                    let nxt = it.peek();
+                    if (nxt != Some(&b':') && is_start) || nxt == None || segment_idx > 8 {
+                        return Err(ParseAddressError(()))
+                    }
+                    if !is_start {
+                        segments[segment_idx] = cur_num;
+                        segment_idx += 1;
+                    }
+                    cur_num_len = 0;
+                    cur_num = 0;
+                    if nxt == Some(&b':') {
+                        it.next(); // consume next character
+                        break // first part finished
+                    } 
+                    is_start = false;
+                },
+                None if segment_idx == 7 => {
+                    segments[segment_idx] = cur_num;
+                    return Ok(Address::from_segments(segments))
+                },
+                _ => return Err(ParseAddressError(()))
+            }
+        }
+        let omitted_idx_start = segment_idx;
+        is_start = true;
+        cur_num_len = 0;
+        cur_num = 0;
+        loop {
+            match it.next() {
+                Some(byte @ (b'0'..=b'9' | b'a' ..= b'f' | b'A' ..= b'F')) => {
+                    if cur_num_len >= 4 {
+                        return Err(ParseAddressError(()))
+                    }
+                    let digit = match byte {
+                        b'0' ..= b'9' => byte - b'0',
+                        b'a' ..= b'f' => byte - b'a' + 10,
+                        b'A' ..= b'F' => byte - b'A' + 10,
+                        _ => unreachable!(),
+                    } as u16;
+                    cur_num_len += 1;
+                    cur_num <<= 4;
+                    cur_num |= digit;
+                    is_start = false;
+                }
+                Some(b':') => {
+                    let nxt = it.peek();
+                    // cannot omit twice
+                    if nxt == Some(&b':') || nxt == None || is_start || segment_idx > 8 {
+                        return Err(ParseAddressError(()))
+                    }
+                    segments[segment_idx] = cur_num;
+                    segment_idx += 1;
+                    cur_num_len = 0;
+                    cur_num = 0;
+                    is_start = false;
+                },
+                None => {
+                    if !is_start {
+                        segments[segment_idx] = cur_num;
+                        segment_idx += 1;
+                    }
+                    break
+                },
+                _ => return Err(ParseAddressError(()))
+            }
+        }
+        let n_omitted_segments = 8 - segment_idx;
+        for idx in (omitted_idx_start + n_omitted_segments .. 8).rev() {
+            segments[idx] = segments[idx - n_omitted_segments]
+        }
+        for idx in omitted_idx_start..omitted_idx_start + n_omitted_segments {
+            segments[idx] = 0;
+        }
+        Ok(Address::from_segments(segments))
+    }
+}
 
-// /// IPv6 address parse error
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// pub struct IpAddrParseError(());
+/// IPv6 address parse error
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ParseAddressError(());
 
 pub struct Packet<T> {
     inner: T,
@@ -292,37 +387,38 @@ mod tests {
         assert_eq!("2001:DB8::8:800:200C:417A", Address::from([0x2001, 0xdb8, 0, 0, 8, 0x800, 0x200c, 0x417a]).to_string());
         assert_eq!("2001:DB8:0:CD30::", Address::from([0x2001, 0xdb8, 0, 0xcd30, 0, 0, 0, 0]).to_string());
     }
-    // #[test]
-    // fn ip_address_parse() {
-    //     let addrs = [
-    //         "::",
-    //         "::1",
-    //         "FE80::1234:5678", 
-    //         "FF01::101", 
-    //         "2001:DB8::8:800:200C:417A", 
-    //         "2001:DB8:0:CD30::",
-    //         "FD12:3456:7890:ABCD:1122:3344:5566:7788", 
-    //         "FD12:3456:7890:ABCD:1122:3344:5566::", 
-    //         "FD12:3456:7890:ABCD:1122:3344::", 
-    //         "::3456:7890:ABCD:1122:3344:5566:7788", 
-    //         "::7890:ABCD:1122:3344:5566:7788", 
-    //     ];
-    //     for addr_str in addrs {
-    //         let addr = addr_str.parse::<Address>().unwrap();
-    //         // assert_eq!(addr_str, addr.to_string());
-    //     }
-    //     let wrong_addrs = [
-    //         "::1::",
-    //         "FF01:::101", 
-    //         "2001:DB8::8:800::200C:417A",
-    //         ":FD12:3456:7890:ABCD:1122:3344:5566:7788", 
-    //         "FD12:3456:7890:ABCD:1122:3344:5566:7788:", 
-    //         "FD12:3456:7890:ABCD:1122:3344:5566:7788:9", 
-    //     ];
-    //     for addr_str in wrong_addrs {
-    //         assert!(addr_str.parse::<Address>().is_err());
-    //     }
-    // }
+    #[test]
+    fn ip_address_parse() {
+        let addrs = [
+            "::",
+            "::1",
+            "FE80::1234:5678", 
+            "FF01::101", 
+            "2001:DB8::8:800:200C:417A", 
+            "2001:DB8:0:CD30::",
+            "FD12:3456:7890:ABCD:1122:3344:5566:7788", 
+            "FD12:3456:7890:ABCD:1122:3344:5566::", 
+            "FD12:3456:7890:ABCD:1122:3344::", 
+            "::3456:7890:ABCD:1122:3344:5566:7788", 
+            "::7890:ABCD:1122:3344:5566:7788", 
+        ];
+        for addr_str in addrs {
+            let addr = addr_str.parse::<Address>().unwrap();
+            assert_eq!(addr_str, addr.to_string());
+        }
+        let wrong_addrs = [
+            "::1::",
+            "FF01:::101", 
+            "2001:DB8::8:800::200C:417A",
+            ":FD12:3456:7890:ABCD:1122:3344:5566:7788", 
+            "FD12:3456:7890:ABCD:1122:3344:5566:7788:", 
+            "FD12:3456:7890:ABCD:1122:3344:5566:7788:9", 
+            "FD12:3456:7890:ABCD:1122:3344:5566:EFGH", 
+        ];
+        for addr_str in wrong_addrs {
+            assert!(addr_str.parse::<Address>().is_err());
+        }
+    }
     #[test]
     fn ip_address_segments_octets() {
         assert_eq!(
