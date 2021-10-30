@@ -1,11 +1,6 @@
-pub mod raw_socket_sys;
-pub mod link;
-pub mod net;
-mod packet_write;
-
-use raw_socket_sys::*;
-use link::*;
-use net::*;
+use raw_socket_labs::raw_socket_sys::*;
+use raw_socket_labs::link::*;
+use raw_socket_labs::net::*;
 
 fn main() {
     let mut socket = RawSocketDesc::new("eth0").unwrap();
