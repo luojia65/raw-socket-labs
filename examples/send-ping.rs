@@ -8,18 +8,18 @@ fn main() {
     let mtu = socket.interface_mtu().unwrap();
     println!("mtu value: {}", mtu);
 
-    let virtual_dev_eui48 = "00-15-5d-5e-93-a7".parse().unwrap();
-    let virtual_dev_ip_addr = "fe80::215:5dff:fe5e:93a7".parse().unwrap();
+    let virtual_dev_eui48 = "00:15:5d:b7:9f:a9".parse().unwrap();
+    let virtual_dev_ip_addr = "fe80::215:5dff:feb7:9fa9".parse().unwrap();
 
     let mut buf = vec![0u8; mtu];
     let mut eth_frame = EthernetFrame::new(&mut buf);
     eth_frame.set_src_addr(virtual_dev_eui48);
-    eth_frame.set_dst_addr("00-15-5D-07-2C-FC".parse().unwrap());
+    eth_frame.set_dst_addr("00-15-5D-EE-22-75".parse().unwrap());
     eth_frame.set_ethertype(EthernetProtocol::Ipv6);
     let mut ip = IpPacket::new(eth_frame.payload_mut());
     ip.set_version(6);
     ip.set_src_addr(virtual_dev_ip_addr);
-    ip.set_dst_addr("fe80::6c55:6581:7772:b3d4".parse().unwrap());
+    ip.set_dst_addr("fe80::d19d:d7:769c:3a86".parse().unwrap());
     ip.set_next_header(IpProtocol::Icmpv6);
     ip.set_hop_limit(128);
     

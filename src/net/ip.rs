@@ -255,6 +255,10 @@ impl<T: AsRef<[u8]>> Packet<T> {
     pub fn src_addr(&self) -> Address {
         Address::from_bytes(&self.inner.as_ref()[Self::SRC_ADDR])
     }
+    // total length as usize
+    pub fn total_len(&self) -> usize {
+        self.payload_len() as usize + Self::IP_HEADER_END
+    }
 }
 
 impl<'a, T: AsRef<[u8]> + ?Sized> Packet<&'a T> {
